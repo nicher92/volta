@@ -24,12 +24,12 @@ TASK7:
   process: retrieval
   task_id: 7
   dataroot: datasets/mscoco
-  features_h5path1: datasets/mscoco/resnet101_faster_rcnn_genome_imgfeats/volta/test_feat.lmdb
+  features_h5path1: /home/gushertni@GU.GU.SE/aicsproject/elephant_feat.lmdb
   features_h5path2: ''
   train_annotations_jsonpath: ''
-  val_annotations_jsonpath: datasets/mscoco/annotations/test_ann.jsonl
-  max_seq_length: 30
-  max_region_num: 36
+  val_annotations_jsonpath: /home/gushertni@GU.GU.SE/aicsproject/elephant_annotations.jsonl
+  max_seq_length: 5
+  max_region_num: 10
   batch_size: 64
   train_split: ''
   val_split: test

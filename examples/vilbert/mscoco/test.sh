@@ -4,7 +4,7 @@ TASK=7
 MODEL=vilbert
 MODEL_CONFIG=vilbert_base
 TASKS_CONFIG=vilbert_test_tasks
-PRETRAINED=checkpoints/mscoco/${MODEL}/RetrievalFlickr30k_${MODEL_CONFIG}/pytorch_model_18.bin
+PRETRAINED=/home/gushertni@GU.GU.SE/aicsproject/volta/AgwrMiOjTv
 OUTPUT_DIR=results/mscoco/${MODEL}
 
 source activate volta

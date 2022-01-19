@@ -128,7 +128,7 @@ def main():
     torch.manual_seed(args.seed)
 
     # Dataset
-    batch_size, task2num_iters, dset_val, dl_val = LoadDatasetEval(args, config, task_cfg, args.task)
+    batch_size, task2num_iters, dset_val, dl_val = LoadDatasetEval(args, config, task_cfg, args.task)      ##
     max_subiter_images = dset_val.max_num_images
 
     # Model
@@ -164,8 +164,17 @@ def main():
     others = []
     score_matrix = np.zeros((args.num_images * args.captions_per_image, args.num_images))
     target_matrix = np.zeros((args.num_images * args.captions_per_image, args.num_images))
+    print(target_matrix.shape)
+    print(score_matrix)
+    print(target_matrix)
+    
+    
+    
     rank_vector = np.ones(args.num_images * args.captions_per_image) * args.num_images
     count = 0
+    
+    
+    #for i, batch in tqdm(enumerate(dl_val), total=task2num_iters[task]):
     for i, batch in tqdm(enumerate(dl_val), total=task2num_iters[task]):
         batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
         features, spatials, image_mask, question, input_mask, segment_ids, target, caption_idx, image_idx = batch
@@ -176,6 +185,12 @@ def main():
         question = question.repeat(features.size(0), 1)
         segment_ids = segment_ids.repeat(features.size(0), 1)
         input_mask = input_mask.repeat(features.size(0), 1)
+        
+        
+        
+        
+        #print(target_matrix)
+      #  print(target_matrix.shape)
 
         with torch.no_grad():
             if args.zero_shot:
@@ -197,32 +212,45 @@ def main():
                 target_matrix[
                     caption_idx, image_idx * max_subiter_images: (image_idx + 1) * max_subiter_images
                 ] = (target.view(-1).float().cpu().numpy())
-
+                
+                
+                print(vil_logit)
+                #print(score_matrix[caption_idx, image_idx * max_subiter_images: (image_idx + 1) * max_subiter_images])
+                #print(target_matrix[caption_idx, image_idx * max_subiter_images: (image_idx + 1) * max_subiter_images])
+            
             if image_idx.item() == args.num_subiters - 1:
-                rank = np.where(
-                    (
-                        np.argsort(-score_matrix[caption_idx])
-                        == np.where(target_matrix[caption_idx] == 1)[0][0]
+                print("HELLO")
+                #print(image_idx.item())
+                try:
+                    rank = np.where((np.argsort(-score_matrix[caption_idx]) == np.where(target_matrix[caption_idx] == 1)[0][0])== 1)[0][0]
+                    rank_vector[caption_idx] = rank
+                    print(rank_vector)
+                    cur_rank_vector = rank_vector[:caption_idx + 1]
+                    r1 = 100.0 * np.sum(cur_rank_vector < 1) / len(cur_rank_vector)
+                    r5 = 100.0 * np.sum(cur_rank_vector < 5) / len(cur_rank_vector)
+                    r10 = 100.0 * np.sum(cur_rank_vector < 10) / len(cur_rank_vector)
+                    medr = np.floor(np.median(cur_rank_vector) + 1)
+                    meanr = np.mean(cur_rank_vector) + 1
+                    print(
+                        "%d Final r1:%.3f, r5:%.3f, r10:%.3f, mder:%.3f, meanr:%.3f"
+                        % (count, r1, r5, r10, medr, meanr)
                     )
-                    == 1
-                )[0][0]
-                rank_vector[caption_idx] = rank
-
-                cur_rank_vector = rank_vector[:caption_idx + 1]
-                r1 = 100.0 * np.sum(cur_rank_vector < 1) / len(cur_rank_vector)
-                r5 = 100.0 * np.sum(cur_rank_vector < 5) / len(cur_rank_vector)
-                r10 = 100.0 * np.sum(cur_rank_vector < 10) / len(cur_rank_vector)
-
-                medr = np.floor(np.median(cur_rank_vector) + 1)
-                meanr = np.mean(cur_rank_vector) + 1
-                print(
-                    "%d Final r1:%.3f, r5:%.3f, r10:%.3f, mder:%.3f, meanr:%.3f"
-                    % (count, r1, r5, r10, medr, meanr)
-                )
-
-                results.append(np.argsort(-score_matrix[caption_idx]).tolist()[:20])
-        count += 1
-
+                    results.append(np.argsort(-score_matrix[caption_idx]).tolist()[:20])
+                    
+                except IndexError as error:
+                    print("fuck")
+                    pass
+                except Exception as exception:
+                # Output unexpected Exceptions.
+                    print("shit") 
+                    pass
+           
+                    
+        count += 1   
+        
+            
+            
+    print("HELOOOOOOOOOOOOOOOOOO")
     r1 = 100.0 * np.sum(rank_vector < 1) / len(rank_vector)
     r5 = 100.0 * np.sum(rank_vector < 5) / len(rank_vector)
     r10 = 100.0 * np.sum(rank_vector < 10) / len(rank_vector)
@@ -248,13 +276,23 @@ def main():
 
     # Text Retrieval
     rank_vector = np.zeros(args.num_images)
-    for image_idx in range(args.num_images):
-        ranks = []
-        tgt_captions = np.where(target_matrix[:, image_idx] == 1)[0]
-        sorted_scores = np.argsort(-score_matrix[:, image_idx])
-        for tgt_caption in tgt_captions:
-            ranks.append(np.where((sorted_scores == tgt_caption) == 1)[0][0])
-        rank_vector[image_idx] = min(ranks)
+    for image_idx in range(501):   #num_images is not 1000 as in args, its 50
+        try:
+            ranks = []
+            tgt_captions = np.where(target_matrix[:, image_idx] == 1)[0]
+            sorted_scores = np.argsort(-score_matrix[:, image_idx])
+            print("target captions: ", tgt_captions)
+            print("sorted scores: ", sorted_scores)
+            print("image index: ", image_idx)
+            for tgt_caption in tgt_captions:
+                print("target caption in target captions: ", tgt_caption)
+                ranks.append(np.where((sorted_scores == tgt_caption) == 1)[0][0])
+            rank_vector[image_idx] = min(ranks)
+        except ValueError as error:
+            print("valuerror")
+        except Exception as exception:
+            print("goshdarnit")
+        
 
     r1 = 100.0 * np.sum(rank_vector < 1) / len(rank_vector)
     r5 = 100.0 * np.sum(rank_vector < 5) / len(rank_vector)
