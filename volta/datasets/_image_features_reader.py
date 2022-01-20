@@ -64,7 +64,7 @@ def min_max_prob(path, item_to_check, n):
         indices_highestprobs = [y for x,y in sort_by_prob]
         
 
-        
+        test_append = np.array([out.item()["bbox"][i] for i in indices_highestprobs])
         each_image_info = []
         for i in indices_highestprobs:          #for each item in bounding box 
 
@@ -74,7 +74,8 @@ def min_max_prob(path, item_to_check, n):
             prob = out.item()['cls_prob'][i]          #highest probability object
             obj = out.item()['objects'][i]                 #object
             
-            test_append = out.item()["bbox"][:n]        #just 10 boxes for test
+            #test_append = out.item()["bbox"][:n]        #just 10 boxes for test
+            
             
             ##encoded same as in original function, "get_detections_from_im", https://github.com/e-bug/volta/blob/main/data/mscoco/extract_coco_image.py
             image_info =  {
