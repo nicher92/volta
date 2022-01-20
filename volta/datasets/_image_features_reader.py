@@ -62,37 +62,25 @@ def min_max_prob(path, item_to_check, n):
         
         sort_by_prob = sorted(highestprobs, reverse=True)[:n]
         indices_highestprobs = [y for x,y in sort_by_prob]
-        
 
         test_append = np.array([out.item()["bbox"][i] for i in indices_highestprobs])
-        each_image_info = []
-        for i in indices_highestprobs:          #for each item in bounding box 
-
-            img_id = filepath
-            feat = out.item()["features"][i]               #features
-            bbox = out.item()['bbox'][i]                   #bbox coordinates
-            prob = out.item()['cls_prob'][i]          #highest probability object
-            obj = out.item()['objects'][i]                 #object
-            
-            #test_append = out.item()["bbox"][:n]        #just 10 boxes for test
-            
-            
-            ##encoded same as in original function, "get_detections_from_im", https://github.com/e-bug/volta/blob/main/data/mscoco/extract_coco_image.py
-            image_info =  {
+        feat_append = np.array([out.item()["features"][i] for i in indices_highestprobs])
+        obj_append = np.array([out.item()["objects"][i] for i in indices_highestprobs])
+        cls_append = np.array([out.item()["cls_prob"][i] for i in indices_highestprobs])
+        
+        image_info =  {
         "img_id": name,                       #COCO_val2014_000000118343
         "img_h": height,
         "img_w": width,
-        "objects_id": base64.b64encode(obj),  # int64
+        "objects_id": base64.b64encode(obj_append),  # int64
         "num_boxes": len(indices_highestprobs),
         "boxes": base64.b64encode(test_append),  # float32
-        "features": base64.b64encode(feat),  # float32
-        "cls_prob": base64.b64encode(prob),
-    }
-        
-    
+        "features": base64.b64encode(feat_append),  # float32
+        "cls_prob": base64.b64encode(cls_append),
+        }
         listofvalues.append(image_info)
     
-    #listofvalues = listofvalues[:51]  #remove 450 images
+    listofvalues = listofvalues[:51]  #remove 450 images
     return listofvalues
 
 
@@ -160,58 +148,59 @@ class ImageFeaturesH5Reader(object):
     def __getitem__(self, image_id):
         
         
-        for item in elephantvalues:
+        for item in elephantvalues:              #for all items in elephantvalues
+            if item["img_id"] == image_id:       #if the item is the image id 
 
-            image_h = int(item["img_h"])
-            image_w = int(item["img_w"])
-            features = np.frombuffer(base64.b64decode(item["features"]), dtype=np.float32).reshape(-1, self.feature_size) 
-            boxes = np.frombuffer(base64.b64decode(item['boxes']), dtype=np.float32).reshape(-1, 4)
+                image_h = int(item["img_h"])
+                image_w = int(item["img_w"])
+                features = np.frombuffer(base64.b64decode(item["features"]), dtype=np.float32).reshape(-1, self.feature_size) 
+                boxes = np.frombuffer(base64.b64decode(item['boxes']), dtype=np.float32).reshape(-1, 4)
 
-            if features is not None:
+                if features is not None:
 
-                image_location = np.zeros((boxes.shape[0], self.num_locs), dtype=np.float32)
-                image_location[:, :4] = boxes
-                if self.num_locs == 5:
-                    image_location[:, 4] = (
-                            (image_location[:, 3] - image_location[:, 1])
-                            * (image_location[:, 2] - image_location[:, 0])
-                            / (float(image_w) * float(image_h))
-                    )
+                    image_location = np.zeros((boxes.shape[0], self.num_locs), dtype=np.float32)
+                    image_location[:, :4] = boxes
+                    if self.num_locs == 5:
+                        image_location[:, 4] = (
+                                (image_location[:, 3] - image_location[:, 1])
+                                * (image_location[:, 2] - image_location[:, 0])
+                                / (float(image_w) * float(image_h))
+                        )
 
-                image_location_ori = copy.deepcopy(image_location)
-                image_location[:, 0] = image_location[:, 0] / float(image_w)
-                image_location[:, 1] = image_location[:, 1] / float(image_h)
-                image_location[:, 2] = image_location[:, 2] / float(image_w)
-                image_location[:, 3] = image_location[:, 3] / float(image_h)
+                    image_location_ori = copy.deepcopy(image_location)
+                    image_location[:, 0] = image_location[:, 0] / float(image_w)
+                    image_location[:, 1] = image_location[:, 1] / float(image_h)
+                    image_location[:, 2] = image_location[:, 2] / float(image_w)
+                    image_location[:, 3] = image_location[:, 3] / float(image_h)
 
-                num_boxes = features.shape[0] 
-                if self.add_global_imgfeat == "first":
-                    g_feat = np.sum(features, axis=0) / num_boxes
-                    num_boxes = num_boxes + 1
-                    features = np.concatenate([np.expand_dims(g_feat, axis=0), features], axis=0)
+                    num_boxes = features.shape[0] 
+                    if self.add_global_imgfeat == "first":
+                        g_feat = np.sum(features, axis=0) / num_boxes
+                        num_boxes = num_boxes + 1
+                        features = np.concatenate([np.expand_dims(g_feat, axis=0), features], axis=0)
 
-                    g_location = [0, 0, 1, 1] + [1] * (self.num_locs - 4)         #
-                    image_location = np.concatenate([np.expand_dims(g_location, axis=0), image_location], axis=0)
+                        g_location = [0, 0, 1, 1] + [1] * (self.num_locs - 4)         #
+                        image_location = np.concatenate([np.expand_dims(g_location, axis=0), image_location], axis=0)
 
-                    g_location_ori = np.array([0, 0, image_w, image_h] + [image_w * image_h] * (self.num_locs - 4))
-                    image_location_ori = np.concatenate(
-                        [np.expand_dims(g_location_ori, axis=0), image_location_ori], axis=0
-                    )
+                        g_location_ori = np.array([0, 0, image_w, image_h] + [image_w * image_h] * (self.num_locs - 4))
+                        image_location_ori = np.concatenate(
+                            [np.expand_dims(g_location_ori, axis=0), image_location_ori], axis=0
+                        )
 
-                elif self.add_global_imgfeat == "last":
-                    g_feat = np.sum(features, axis=0) / num_boxes
-                    num_boxes = num_boxes + 1
-                    features = np.concatenate([features, np.expand_dims(g_feat, axis=0)], axis=0)
+                    elif self.add_global_imgfeat == "last":
+                        g_feat = np.sum(features, axis=0) / num_boxes
+                        num_boxes = num_boxes + 1
+                        features = np.concatenate([features, np.expand_dims(g_feat, axis=0)], axis=0)
 
-                    g_location = [0, 0, 1, 1] + [1] * (self.num_locs - 4)
-                    image_location = np.concatenate([image_location, np.expand_dims(g_location, axis=0)], axis=0)
+                        g_location = [0, 0, 1, 1] + [1] * (self.num_locs - 4)
+                        image_location = np.concatenate([image_location, np.expand_dims(g_location, axis=0)], axis=0)
 
-                    g_location_ori = np.array([0, 0, image_w, image_h] + [image_w * image_h] * (self.num_locs - 4))
-                    image_location_ori = np.concatenate(
-                        [image_location_ori, np.expand_dims(g_location_ori, axis=0)], axis=0
-                    )
+                        g_location_ori = np.array([0, 0, image_w, image_h] + [image_w * image_h] * (self.num_locs - 4))
+                        image_location_ori = np.concatenate(
+                            [image_location_ori, np.expand_dims(g_location_ori, axis=0)], axis=0
+                        )
 
-            return features, num_boxes, image_location, image_location_ori          #indentation here?
+                    return features, num_boxes, image_location, image_location_ori          #indentation here?
 
     def keys(self) -> List[int]:
         return self._image_ids
